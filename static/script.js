@@ -1,34 +1,38 @@
-const socket = new WebSocket("ws://localhost:8765");
+const socket = new WebSocket(
+  "wss://websocket-chat-app-1-vx88.onrender.com"
+);
+
 const messagesDiv = document.getElementById("messages");
+const input = document.getElementById("messageInput");
+const sendBtn = document.getElementById("sendBtn");
 
-const username = prompt("Enter your name");
-
+// When connection opens
 socket.onopen = () => {
-  socket.send(JSON.stringify({
-    type: "join",
-    user: username
-  }));
+  console.log("Connected to WebSocket server");
 };
 
+// When message comes from server
 socket.onmessage = (event) => {
   const data = JSON.parse(event.data);
+
   const msg = document.createElement("div");
-
-  if (data.type === "system") {
-    msg.innerHTML = `<i>${data.text}</i>`;
-  } else {
-    msg.innerHTML = `<b>${data.user}:</b> ${data.text}`;
-  }
-
+  msg.textContent = `${data.user}: ${data.message}`;
   messagesDiv.appendChild(msg);
 };
 
-function sendMessage() {
-  const input = document.getElementById("messageInput");
-  socket.send(JSON.stringify({
-    type: "message",
-    user: username,
-    text: input.value
-  }));
-  input.value = "";
-}
+// When connection closes
+socket.onclose = () => {
+  console.log("Disconnected from server");
+};
+
+// Send message
+sendBtn.onclick = () => {
+  if (input.value.trim() !== "") {
+    socket.send(
+      JSON.stringify({
+        message: input.value
+      })
+    );
+    input.value = "";
+  }
+};

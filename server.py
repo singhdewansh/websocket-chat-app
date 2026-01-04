@@ -1,58 +1,54 @@
 import asyncio
-import websockets
 import json
 import os
+import websockets
 
+# Store all connected clients
 connected_clients = set()
 
-async def handler(websocket):
+async def chat_handler(websocket):
+    # Add new client
     connected_clients.add(websocket)
-    username = "Unknown"
+    print("New client connected")
 
     try:
         async for message in websocket:
             data = json.loads(message)
 
-            if data["type"] == "join":
-                username = data["user"]
-                join_msg = json.dumps({
-                    "type": "system",
-                    "text": f"{username} joined the chat"
-                })
-                await broadcast(join_msg)
+            # Create message to broadcast
+            response = {
+                "user": "User",
+                "message": data["message"]
+            }
 
-            elif data["type"] == "message":
-                chat_msg = json.dumps({
-                    "type": "message",
-                    "user": data["user"],
-                    "text": data["text"]
-                })
-                await broadcast(chat_msg)
+            # Send message to all connected clients
+            for client in connected_clients:
+                if client.open:
+                    await client.send(json.dumps(response))
 
     except websockets.exceptions.ConnectionClosed:
-        pass
-    finally:
-        connected_clients.remove(websocket)
-        leave_msg = json.dumps({
-            "type": "system",
-            "text": f"{username} left the chat"
-        })
-        await broadcast(leave_msg)
+        print("Client disconnected")
 
-async def broadcast(message):
-    for client in connected_clients:
-        await client.send(message)
+    finally:
+        # Remove client when disconnected
+        connected_clients.remove(websocket)
+
 
 async def main():
+    # Render gives PORT automatically
     port = int(os.environ.get("PORT", 8765))
+
+    print(f"Server running on port {port}")
+
     async with websockets.serve(
-        handler,
+        chat_handler,
         "0.0.0.0",
         port,
-        ping_interval=None
+        ping_interval=20,
+        ping_timeout=20
     ):
-        print(f"Server running on port {port}")
-        await asyncio.Future()
+        await asyncio.Future()  # Run forever
+
 
 if __name__ == "__main__":
     asyncio.run(main())
