@@ -3,7 +3,7 @@ const chatBox = document.getElementById("chat-box");
 const messageInput = document.getElementById("message");
 const sendBtn = document.getElementById("send");
 
-// Create WebSocket connection
+// Create WebSocket connection to /ws
 const socket = new WebSocket(
   (location.protocol === "https:" ? "wss://" : "ws://") +
   location.host +
@@ -21,7 +21,6 @@ socket.onmessage = (event) => {
 
   const msgDiv = document.createElement("div");
   msgDiv.classList.add("message");
-
   msgDiv.innerHTML = `<b>${data.user}:</b> ${data.message}`;
   chatBox.appendChild(msgDiv);
 
@@ -43,12 +42,10 @@ function sendMessage() {
   const message = messageInput.value.trim();
   if (message === "") return;
 
-  socket.send(
-    JSON.stringify({
-      user: "User",
-      message: message
-    })
-  );
+  socket.send(JSON.stringify({
+    user: "User",
+    message: message
+  }));
 
   messageInput.value = "";
 }

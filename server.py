@@ -1,19 +1,24 @@
+
 import asyncio
 import websockets
 import json
 import os
 from pathlib import Path
+from http import HTTPStatus
 
 PORT = int(os.environ.get("PORT", 10000))
 CLIENTS = set()
 STATIC_DIR = Path("static")
 
-
-# ---------- HTTP handler ----------
+# HTTP request handler
 async def process_request(path, request_headers):
-    # Only allow websocket on /ws
-    if path == "/ws":
-        return None
+    # Only handle HTTP for files
+    if request_headers.get("Upgrade", "").lower() == "websocket":
+        return None  # Let WebSocket handshake pass
+
+    # Health check HEAD request (from Render) → ignore
+    if request_headers.get("Method") == "HEAD":
+        return HTTPStatus.OK, [], b""
 
     if path == "/":
         path = "/index.html"
@@ -21,20 +26,22 @@ async def process_request(path, request_headers):
     file_path = STATIC_DIR / path.lstrip("/")
 
     if not file_path.exists():
-        return 404, [], b"Not Found"
+        return HTTPStatus.NOT_FOUND, [], b"Not Found"
 
     content = file_path.read_bytes()
 
+    # Content type
     content_type = "text/html"
     if file_path.suffix == ".js":
         content_type = "application/javascript"
     elif file_path.suffix == ".css":
         content_type = "text/css"
 
-    return 200, [("Content-Type", content_type)], content
+    headers = [("Content-Type", content_type)]
+    return HTTPStatus.OK, headers, content
 
 
-# ---------- WebSocket handler ----------
+# WebSocket handler
 async def chat_handler(websocket):
     CLIENTS.add(websocket)
     try:
@@ -47,7 +54,7 @@ async def chat_handler(websocket):
         CLIENTS.remove(websocket)
 
 
-# ---------- MAIN ----------
+# Main server
 async def main():
     async with websockets.serve(
         chat_handler,
@@ -55,8 +62,8 @@ async def main():
         PORT,
         process_request=process_request
     ):
-        print("Server running")
-        await asyncio.Future()
+        print(f"Server running on port {PORT}")
+        await asyncio.Future()  # run forever
 
 
 if __name__ == "__main__":
