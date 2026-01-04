@@ -1,38 +1,53 @@
+// Connect to WebSocket server (auto-detects Render domain)
 const socket = new WebSocket(
-  "wss://websocket-chat-app-1-vx88.onrender.com"
+  (window.location.protocol === "https:" ? "wss://" : "ws://") +
+  window.location.host
 );
 
-const messagesDiv = document.getElementById("messages");
-const input = document.getElementById("messageInput");
-const sendBtn = document.getElementById("sendBtn");
+const chat = document.getElementById("chat");
+const input = document.getElementById("msg");
 
-// When connection opens
-socket.onopen = () => {
-  console.log("Connected to WebSocket server");
-};
-
-// When message comes from server
+// When message received
 socket.onmessage = (event) => {
   const data = JSON.parse(event.data);
 
-  const msg = document.createElement("div");
-  msg.textContent = `${data.user}: ${data.message}`;
-  messagesDiv.appendChild(msg);
-};
+  const p = document.createElement("p");
+  p.textContent = data.message;
+  chat.appendChild(p);
 
-// When connection closes
-socket.onclose = () => {
-  console.log("Disconnected from server");
+  // auto-scroll
+  chat.scrollTop = chat.scrollHeight;
 };
 
 // Send message
-sendBtn.onclick = () => {
-  if (input.value.trim() !== "") {
-    socket.send(
-      JSON.stringify({
-        message: input.value
-      })
-    );
-    input.value = "";
+function sendMsg() {
+  if (input.value.trim() === "") return;
+
+  socket.send(
+    JSON.stringify({
+      message: input.value
+    })
+  );
+
+  input.value = "";
+}
+
+// Optional: send on Enter key
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    sendMsg();
   }
+});
+
+// Connection status logs
+socket.onopen = () => {
+  console.log("✅ WebSocket connected");
+};
+
+socket.onclose = () => {
+  console.log("❌ WebSocket disconnected");
+};
+
+socket.onerror = (err) => {
+  console.error("WebSocket error:", err);
 };
