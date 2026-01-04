@@ -2,57 +2,65 @@ import asyncio
 import websockets
 import json
 import os
-import threading
-from http.server import SimpleHTTPRequestHandler
-from socketserver import TCPServer
+from pathlib import Path
 
-# Ports
-HTTP_PORT = int(os.environ.get("PORT", 8000))
-WS_PORT = HTTP_PORT  # WebSocket uses same Render port
+PORT = int(os.environ.get("PORT", 10000))
+CLIENTS = set()
 
-# Connected clients
-clients = set()
+STATIC_DIR = Path("static")
 
 
-# ---------------- WebSocket Server ----------------
+# ---------- Serve HTTP files ----------
+async def process_request(path, request_headers):
+    if path == "/":
+        path = "/index.html"
+
+    file_path = STATIC_DIR / path.lstrip("/")
+
+    if not file_path.exists() or not file_path.is_file():
+        return 404, [], b"Not Found"
+
+    content = file_path.read_bytes()
+
+    headers = [
+        ("Content-Type", "text/html")
+    ]
+
+    if file_path.suffix == ".js":
+        headers = [("Content-Type", "application/javascript")]
+    elif file_path.suffix == ".css":
+        headers = [("Content-Type", "text/css")]
+
+    return 200, headers, content
+
+
+# ---------- WebSocket handler ----------
 async def chat_handler(websocket):
-    clients.add(websocket)
+    CLIENTS.add(websocket)
     try:
         async for message in websocket:
             data = json.loads(message)
 
-            # Broadcast message to all clients
-            for client in clients:
+            for client in CLIENTS:
                 if client.open:
                     await client.send(json.dumps(data))
 
     except:
         pass
     finally:
-        clients.remove(websocket)
+        CLIENTS.remove(websocket)
 
 
-async def start_websocket():
-    async with websockets.serve(chat_handler, "0.0.0.0", WS_PORT):
+# ---------- MAIN ----------
+async def main():
+    async with websockets.serve(
+        chat_handler,
+        "0.0.0.0",
+        PORT,
+        process_request=process_request
+    ):
         await asyncio.Future()  # run forever
 
 
-# ---------------- HTTP Server ----------------
-def start_http():
-    os.chdir("static")  # serve index.html from static/
-    handler = SimpleHTTPRequestHandler
-    with TCPServer(("", HTTP_PORT), handler) as httpd:
-        httpd.serve_forever()
-
-
-# ---------------- MAIN ----------------
-def main():
-    # Start HTTP server in background
-    threading.Thread(target=start_http, daemon=True).start()
-
-    # Start WebSocket server
-    asyncio.run(start_websocket())
-
-
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
