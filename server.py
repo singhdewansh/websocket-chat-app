@@ -9,10 +9,10 @@ CLIENTS = set()
 STATIC_DIR = Path("static")
 
 
-# -------- Serve frontend files (HTTP) --------
+# ---------- HTTP handler ----------
 async def process_request(path, request_headers):
-    # IMPORTANT: allow WebSocket handshake to pass through
-    if request_headers.get("Upgrade", "").lower() == "websocket":
+    # Only allow websocket on /ws
+    if path == "/ws":
         return None
 
     if path == "/":
@@ -31,27 +31,23 @@ async def process_request(path, request_headers):
     elif file_path.suffix == ".css":
         content_type = "text/css"
 
-    headers = [("Content-Type", content_type)]
-    return 200, headers, content
+    return 200, [("Content-Type", content_type)], content
 
 
-# -------- WebSocket chat logic --------
+# ---------- WebSocket handler ----------
 async def chat_handler(websocket):
     CLIENTS.add(websocket)
     try:
         async for message in websocket:
             data = json.loads(message)
-
-            # broadcast to all connected clients
             for client in CLIENTS:
                 if client.open:
                     await client.send(json.dumps(data))
-
     finally:
         CLIENTS.remove(websocket)
 
 
-# -------- Main server --------
+# ---------- MAIN ----------
 async def main():
     async with websockets.serve(
         chat_handler,
@@ -59,8 +55,8 @@ async def main():
         PORT,
         process_request=process_request
     ):
-        print("Server running...")
-        await asyncio.Future()  # run forever
+        print("Server running")
+        await asyncio.Future()
 
 
 if __name__ == "__main__":
